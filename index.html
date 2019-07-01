@@ -4,12 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Meetjestad monitor</title>
+    <title>Meet je stad monitor</title>
 
     <script src="__/firebase/6.2.2/firebase-app.js"></script>
     <script src="/__/firebase/6.2.2/firebase-auth.js"></script>
     <script src="__/firebase/6.2.2/firebase-firestore.js"></script>
     <script src="/__/firebase/init.js"></script>
+
+    <script src="https://kit.fontawesome.com/6db9beac64.js"></script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.5/css/bulma.min.css">
     <link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
@@ -20,15 +22,15 @@
     <script>
         var collection;
         Vue.component('app', {
-            props: ['user', 'db', 'sensors'],
+            props: ['auth', 'user', 'db', 'sensors'],
             template: `
                 <div>
-                    <sensors :sensorList='sensors'></sensors>
+                    <hero :user='user' :auth='auth'></hero>
+                    <sensors :sensorList='sensors' v-on:sensorDelete="onSensorDelete"></sensors>
                     <addsensorform v-on:submit="onSensorSubmit"></addsensorform>
                 </div>`,
             methods: {
                 onSensorSubmit: function(data) {
-                    console.log("onSensorSubmit", data)
                     const id = data.sensor_id + "_" + this.user.uid.substring(0,5);
                     const d = {
                         owner: this.user.uid,
@@ -37,14 +39,44 @@
                         email_address: data.email_address,
                     }
                     collection.doc(id).set(d).catch((err) => console.log("error saving sensor", err));
-                    console.log("onSensorSubmit complete")
                 },
-            },
-            mounted: function() {
-                console.log("mounted", this.sensors)
-            },
-            updated: function() {
-                console.log("app updated", this.sensors)
+                onSensorDelete: function(id) {
+                    collection.doc(id).delete().then(function() {
+                        console.log("deleted", id);
+                    })
+                }
+            }
+        })
+
+        Vue.component('hero', {
+            props: ['auth', 'user'],
+            template: `
+                <section class="hero">
+                    <div class="hero-head">
+                        <div class="level">
+                            <div class="level-left"></div>
+                            <div class="level-right">
+                                <p class="level-item">{{user.displayName}}</p>
+                                <figure class="level-item image is-48x48">
+                                    <img :src="user.photoURL" class="is-rounded" />
+                                </figure>
+                                <div class="level-item">
+                                    <a v-on:click="signOut"><i class="fas fa-sign-out-alt"></i></a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-body">
+                        <div class="container">
+                            <h1 class="title is-1">Meet je stad monitor</h1>
+                        </div>
+                    </div>
+                </section>`,
+            methods: {
+                signOut: function() {
+                    this.auth.signOut();
+                    window.location.href = "/";
+                }
             }
         })
         
@@ -53,32 +85,48 @@
             template: `<div class="column">
                     <div>
                         <h2 class="subtitle is-3">My sensors</h2>
-                        <div class="tile is-ancestor">
-                            <div class="tile is-vertical">
+                        <div>
+                            <div>
                                 <sensor
                                     v-for="item in sensorList"
                                     v-bind:sensorInfo="item"
                                     v-bind:key="item.sensor_id"
+                                    v-on="$listeners"
                                 ></sensor>
                             </div>
                         </div>
                     </div>
                 </div>`,
-            mounted: function() {
-                console.log("sensor list here", this.sensorList)
-            },
-            updated: function() {
-                console.log("sensors list updated", this.sensorList)
-            }
         })
     
         Vue.component('sensor', {
             props: ['sensorInfo'],
-            template: `<div class="tile is-child">
-                    <h3 class="subtitle is-5">{{ sensorInfo.sensor_id }}</h3>
+            template: `<div class="box">
+                    <div class="level">
+                        <div class="level-left">
+                            <h3 class="subtitle is-5 level-item">{{ sensorInfo.sensor_id }}</h3>
+                        </div>
+                        <div class="level-right">
+                            <button v-on:click='deleteSensor' class="delete is-medium level-item">Delete</button>
+                        </div>
+                    </div>
+                    <sensor-card :sensorInfo="sensorInfo"></sensor-card>
+                </div>`,
+            methods: {
+                deleteSensor: function(e) {
+                    this.$emit('sensorDelete', this.sensorInfo.doc_id);
+                }
+            }
+        })
+
+        Vue.component('sensor-card', {
+            props: ['sensorInfo'],
+            template: `
+                <div>
                     <div>Battery voltage threshold: {{ sensorInfo.threshold }}</div>
                     <div>E-mail address: {{ sensorInfo.email_address }}</div>
-                </div>`
+                </div>
+            `
         })
     
         Vue.component('addsensorform', {
@@ -90,22 +138,11 @@
             },
             methods: {
                 save: function(event) {
-                    /*const sensors = this.db.collection("sensors");
-                    const data = {
-                        sensor_id: this.form.sensor_id,
-                        email_address: this.form.email_address,
-                        threshold: this.form.threshold,
-                        owner: this.user.uid,
-                    };
-                    const id = this.form.sensor_id + "_" + this.user.uid.substring(0,5);
-                    sensors.doc(id).set(data);*/
-                    console.log("emitting 'submit'", this.form);
                     this.$emit('submit', this.form);
                     this.form = {}
                     return false;
                 },
                 valid: function(event) {
-                    console.log("valid?", this.form);
                     return
                         this.form.sensor_id !== undefined &&
                         this.form.sensor_id !== '' && 
@@ -141,49 +178,67 @@
     
 </head>
 <body>
-    <div class="container">
-        <h1 class="title is-1">Meetjestad monitor</h1>
-        <div id="root" class="columns"></div>
-        <div id="auth">
-            <div id="firebaseui-auth-container"></div>
+    <section class="section">
+        <div class="container">
+            <div id="root" class="columns"></div>
+            <div id="auth">
+                <section class="section">
+                    <div class="hero">
+                        <div class="hero-body">
+                                <div class="container">
+                                    <h1 class="title is-1">Meet je stad monitor</h1>
+                                </div>
+                            </div>
+                        </div>
+                </section>
+                <div id="firebaseui-auth-container"></div>
+            </div>
         </div>
-    </div>
+    </section>
+    <footer class="footer">
+        <div class="content has-text-centered">
+            <p>
+                Created by <a href="https://ricco.dev">Ricco Førgaard</a>.
+                Follow me on <a href="https://github.com/fiskeben">GitHub</a>
+                or <a href="https://twitter.com/fiskeben">Twitter</a>.
+            </p>
+            <p>Not affiliated with the <a href="https://meetjestad.net">Meet je stad</a> project.</p>
+        </div>
+    </footer>
+    
     <script>
         var auth = firebase.auth();
-        var ui = new firebaseui.auth.AuthUI(auth);
         var db = firebase.firestore();
         collection = db.collection("sensors");
 
-        firebase.auth().onAuthStateChanged(function(user) {
-            console.log("init", user);
+        var app;
+        auth.onAuthStateChanged(function(user) {
             if (user) {
                 var app = new Vue({
                     el: '#root',
                     data: {
+                        auth: auth,
                         user: user,
                         db: db,
                         sensors: [],
                     },
-                    template: `<app :user='user' :db='db' :sensors='sensors'></app>`
+                    template: `<app :auth='auth' :user='user' :db='db' :sensors='sensors'></app>`
                 });
                 window.__VUE_DEVTOOLS_GLOBAL_HOOK__.Vue = app.constructor;
                 collection.where("owner", "==", user.uid).onSnapshot(function(querySnapshot) {
                     const res = [];
                     querySnapshot.forEach((doc) => {
-                        res.push(doc.data());
+                        const d = doc.data()
+                        d.doc_id = doc.id;
+                        res.push(d);
                     });
-                    console.log("on snapshot here", app.sensors, res)
                     app.sensors = res;
                 });
             } else {
-                console.log("hello");
+                var ui = new firebaseui.auth.AuthUI(auth);
                 ui.start('#firebaseui-auth-container', {
                     callbacks: {
                         signInSuccessWithAuthResult: function(authResult, redirectUrl) {
-                            // User successfully signed in.
-                            // Return type determines whether we continue the redirect automatically
-                            // or whether we leave that to developer to handle.
-                            consolelog("signInSuccessWithAuthResult", authResult, redirectUrl)
                             return true;
                         },
                     },
