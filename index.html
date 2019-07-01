@@ -22,13 +22,31 @@
     <script>
         var collection;
         Vue.component('app', {
-            props: ['auth', 'user', 'db', 'sensors'],
+            props: ['auth', 'user', 'db'],
+            data: function() {
+                return {sensors: []};
+            },
             template: `
                 <div>
                     <hero :user='user' :auth='auth'></hero>
-                    <sensors :sensorList='sensors' v-on:sensorDelete="onSensorDelete"></sensors>
-                    <addsensorform v-on:submit="onSensorSubmit"></addsensorform>
+                    <div class="columns">
+                        <sensors :sensorList='sensors' v-on:sensorDelete="onSensorDelete"></sensors>
+                        <addsensorform v-on:submit="onSensorSubmit"></addsensorform>
+                    </div>
                 </div>`,
+            mounted: function() {
+                var collection = this.db.collection("sensors");
+                var that = this;
+                collection.where("owner", "==", this.user.uid).onSnapshot(function(querySnapshot) {
+                    const sensors = [];
+                    querySnapshot.forEach((doc) => {
+                        const d = doc.data()
+                        d.doc_id = doc.id;
+                        sensors.push(d);
+                    });
+                    that.sensors = sensors;
+                });
+            },
             methods: {
                 onSensorSubmit: function(data) {
                     const id = data.sensor_id + "_" + this.user.uid.substring(0,5);
@@ -53,7 +71,7 @@
             template: `
                 <section class="hero">
                     <div class="hero-head">
-                        <div class="level">
+                        <div class="level is-mobile">
                             <div class="level-left"></div>
                             <div class="level-right">
                                 <p class="level-item">{{user.displayName}}</p>
@@ -102,7 +120,7 @@
         Vue.component('sensor', {
             props: ['sensorInfo'],
             template: `<div class="box">
-                    <div class="level">
+                    <div class="level is-mobile">
                         <div class="level-left">
                             <h3 class="subtitle is-5 level-item">{{ sensorInfo.sensor_id }}</h3>
                         </div>
@@ -123,10 +141,12 @@
             props: ['sensorInfo'],
             template: `
                 <div>
-                    <div>Battery voltage threshold: {{ sensorInfo.threshold }}</div>
-                    <div>E-mail address: {{ sensorInfo.email_address }}</div>
-                </div>
-            `
+                    <p>Send alerts to
+                        <strong>{{ sensorInfo.email_address }}</strong>
+                        when voltage reaches
+                        <strong>{{ sensorInfo.threshold }}V</strong>.
+                    </p>
+                </div>`
         })
     
         Vue.component('addsensorform', {
@@ -153,7 +173,7 @@
             },
             template: `<div class="column">
                 <h2 class="subtitle is-3">Add new sensor</h2>
-                <div>
+                <div class="box">
                     <form>
                         <div>
                             <label for="sensor_id">Sensor ID:</label>
@@ -174,13 +194,10 @@
                 </div>
             </div>`
         })
-    </script>
-    
-</head>
-<body>
-    <section class="section">
-        <div class="container">
-            <div id="root" class="columns"></div>
+
+        Vue.component('login', {
+            props: ['auth'],
+            template: `
             <div id="auth">
                 <section class="section">
                     <div class="hero">
@@ -192,50 +209,9 @@
                         </div>
                 </section>
                 <div id="firebaseui-auth-container"></div>
-            </div>
-        </div>
-    </section>
-    <footer class="footer">
-        <div class="content has-text-centered">
-            <p>
-                Created by <a href="https://ricco.dev">Ricco Førgaard</a>.
-                Follow me on <a href="https://github.com/fiskeben">GitHub</a>
-                or <a href="https://twitter.com/fiskeben">Twitter</a>.
-            </p>
-            <p>Not affiliated with the <a href="https://meetjestad.net">Meet je stad</a> project.</p>
-        </div>
-    </footer>
-    
-    <script>
-        var auth = firebase.auth();
-        var db = firebase.firestore();
-        collection = db.collection("sensors");
-
-        var app;
-        auth.onAuthStateChanged(function(user) {
-            if (user) {
-                var app = new Vue({
-                    el: '#root',
-                    data: {
-                        auth: auth,
-                        user: user,
-                        db: db,
-                        sensors: [],
-                    },
-                    template: `<app :auth='auth' :user='user' :db='db' :sensors='sensors'></app>`
-                });
-                window.__VUE_DEVTOOLS_GLOBAL_HOOK__.Vue = app.constructor;
-                collection.where("owner", "==", user.uid).onSnapshot(function(querySnapshot) {
-                    const res = [];
-                    querySnapshot.forEach((doc) => {
-                        const d = doc.data()
-                        d.doc_id = doc.id;
-                        res.push(d);
-                    });
-                    app.sensors = res;
-                });
-            } else {
-                var ui = new firebaseui.auth.AuthUI(auth);
+            </div>`,
+            mounted: function() {
+                var ui = new firebaseui.auth.AuthUI(this.auth);
                 ui.start('#firebaseui-auth-container', {
                     callbacks: {
                         signInSuccessWithAuthResult: function(authResult, redirectUrl) {
@@ -255,12 +231,56 @@
                         },
                     ],
                 });
-                var app = new Vue({
-                    el: '#auth',
-                })
             }
-        });
-        
+        })
+    </script>
+    
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <div id="root" class="columns"></div>
+        </div>
+    </section>
+    <footer class="footer">
+        <div class="content has-text-centered">
+            <p>
+                Created by <a href="https://ricco.dev">Ricco Førgaard</a>.
+                Follow me on <a href="https://github.com/fiskeben">GitHub</a>
+                or <a href="https://twitter.com/fiskeben">Twitter</a>.
+            </p>
+            <p>Not affiliated with the <a href="https://meetjestad.net">Meet je stad</a> project.</p>
+        </div>
+    </footer>
+    
+    <script>
+        var auth = firebase.auth();
+        var db = firebase.firestore();
+        collection = db.collection("sensors");
+
+        var app = new Vue({
+            el: '#root',
+            data: {
+                auth: auth,
+                user: {},
+                db: db,
+                sensors: [],
+            },
+            template: `
+                <div>
+                    <app v-if="user && user.uid" :auth='auth' :user='user' :db='db' :sensors='sensors'></app>
+                    <login v-else :auth='auth'></login>
+                </div>`,
+            mounted: function() {
+                console.log("root mounted", this.user);
+                var that = this;
+                this.auth.onAuthStateChanged(function(user) {
+                    console.log("auth state changed", user);
+                    that.user = user;
+                    that.$emit('userStateChange', that.user);
+                });
+            },
+        });        
     </script>
 </body>
 </html>
