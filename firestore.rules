@@ -4,5 +4,8 @@ service cloud.firestore {
       allow read, update, delete: if request.auth.uid == resource.data.owner;
       allow create: if request.auth.uid != null;
     }
+    match /alarms/{document=**} {
+    	allow read;
+    }
   }
 }
