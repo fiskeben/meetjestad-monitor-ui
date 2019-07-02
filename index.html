@@ -42,12 +42,10 @@
                         d.doc_id = doc.id;
                         res[d.sensor_id] = d;
                     });
-                    console.log("got sensors", res)
                     const alarms = that.db.collection("alarms");
                     alarms.get().then(function(querySnapshot) {
                         querySnapshot.forEach((doc) => {
                             const s = res[doc.id];
-                            console.log("adding alarm", s, doc.id)
                             if (s === undefined) {
                                 return
                             }
@@ -61,14 +59,12 @@
                             if (a.offline.seconds > 0) {
                                 s.offline = new Date(a.offline.seconds);
                             }
-                            console.log("alarm added", s)
                             res[doc.id] = s;
                         });
                         const keys = Object.keys(res);
                         that.sensors = keys.map((k) => {
                             return res[k];
                         });
-                        console.log("sensors", that.sensors)
                     });
                 });
             },
@@ -330,10 +326,8 @@
                     <login v-else :auth='auth'></login>
                 </div>`,
             mounted: function() {
-                console.log("root mounted", this.user);
                 var that = this;
                 this.auth.onAuthStateChanged(function(user) {
-                    console.log("auth state changed", user);
                     that.user = user;
                     that.$emit('userStateChange', that.user);
                 });
