@@ -20,7 +20,6 @@
     <script src="https://unpkg.com/vue"></script>
 
     <script>
-        var collection;
         Vue.component('app', {
             props: ['auth', 'user', 'db'],
             data: function() {
@@ -35,9 +34,8 @@
                     </div>
                 </div>`,
             mounted: function() {
-                var collection = this.db.collection("sensors");
                 var that = this;
-                collection.where("owner", "==", this.user.uid).onSnapshot(function(querySnapshot) {
+                this.db.collection("sensors").where("owner", "==", this.user.uid).onSnapshot(function(querySnapshot) {
                     const sensors = [];
                     querySnapshot.forEach((doc) => {
                         const d = doc.data()
@@ -53,13 +51,13 @@
                     const d = {
                         owner: this.user.uid,
                         sensor_id: data.sensor_id,
-                        threshold: data.threshold,
+                        threshold: parseFloat(data.threshold),
                         email_address: data.email_address,
                     }
-                    collection.doc(id).set(d).catch((err) => console.log("error saving sensor", err));
+                    this.db.collection("sensors").doc(id).set(d).catch((err) => console.log("error saving sensor", err));
                 },
                 onSensorDelete: function(id) {
-                    collection.doc(id).delete().then(function() {
+                    this.db.collection("sensors").doc(id).delete().then(function() {
                         console.log("deleted", id);
                     })
                 }
@@ -256,7 +254,6 @@
     <script>
         var auth = firebase.auth();
         var db = firebase.firestore();
-        collection = db.collection("sensors");
 
         var app = new Vue({
             el: '#root',
