@@ -36,13 +36,40 @@
             mounted: function() {
                 var that = this;
                 this.db.collection("sensors").where("owner", "==", this.user.uid).onSnapshot(function(querySnapshot) {
-                    const sensors = [];
+                    const res = {};
                     querySnapshot.forEach((doc) => {
                         const d = doc.data()
                         d.doc_id = doc.id;
-                        sensors.push(d);
+                        res[d.sensor_id] = d;
                     });
-                    that.sensors = sensors;
+                    console.log("got sensors", res)
+                    const alarms = that.db.collection("alarms");
+                    alarms.get().then(function(querySnapshot) {
+                        querySnapshot.forEach((doc) => {
+                            const s = res[doc.id];
+                            console.log("adding alarm", s, doc.id)
+                            if (s === undefined) {
+                                return
+                            }
+                            const a = doc.data();
+                            if (a.gps.seconds > 0) {
+                                s.gps = new Date(a.gps.seconds);
+                            }
+                            if (a.voltage.seconds > 0) {
+                                s.voltage = new Date(a.voltage.seconds);
+                            }
+                            if (a.offline.seconds > 0) {
+                                s.offline = new Date(a.offline.seconds);
+                            }
+                            console.log("alarm added", s)
+                            res[doc.id] = s;
+                        });
+                        const keys = Object.keys(res);
+                        that.sensors = keys.map((k) => {
+                            return res[k];
+                        });
+                        console.log("sensors", that.sensors)
+                    });
                 });
             },
             methods: {
@@ -144,7 +171,41 @@
                         when voltage reaches
                         <strong>{{ sensorInfo.threshold }}V</strong>.
                     </p>
-                </div>`
+                    <div class="field is-grouped is-grouped-multiline">
+                        <sensor-tag name="Status" :status="namedStatus('offline', 'up', 'down')"></sensor-tag>
+                        <sensor-tag name="GPS" :status="namedStatus('gps', 'ok', 'off')"></sensor-tag>
+                        <sensor-tag name="Battery" :status="namedStatus('voltage', 'ok', 'low')"></sensor-tag>
+                    </div>
+                </div>`,
+            methods: {
+                namedStatus: function(name, good, bad) {
+                    const status = this.sensorInfo[name];
+                    if (!status) {
+                        return {text: good, value: 'ok'};
+                    }
+                    return {text: bad, value: 'ko'};
+                },
+            }
+        })
+
+        Vue.component('sensor-tag', {
+            props: ['name', 'status'],
+            template: `
+            <div class="control">
+                <div class="tags has-addons">
+                    <span class="tag is-dark">{{name}}</span>
+                    <span :class="classes">{{status.text}}</span>
+                </div>
+            </div>
+            `,
+            computed: {
+                classes: function() {
+                    if (this.status.value === 'ok') {
+                        return 'tag is-success';
+                    }
+                    return 'tag is-danger'
+                }
+            }
         })
     
         Vue.component('addsensorform', {
